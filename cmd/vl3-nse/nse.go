@@ -25,6 +25,8 @@ import (
 	"github.com/networkservicemesh/networkservicemesh/controlplane/api/networkservice"
 	"github.com/networkservicemesh/networkservicemesh/pkg/tools"
 	"github.com/networkservicemesh/networkservicemesh/sdk/common"
+	"github.com/networkservicemesh/networkservicemesh/sdk/endpoint"
+	"github.com/networkservicemesh/networkservicemesh/controlplane/api/connectioncontext"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
@@ -85,34 +87,6 @@ func (e vL3CompositeEndpoint) AddCompositeEndpoints(nsConfig *common.NSConfigura
 	return &compositeEndpoints
 }
 
-// exported the symbol named "CompositeEndpointPlugin"
-
-func main() {
-	// Capture signals to cleanup before exiting
-	logrus.Info("starting endpoint")
-	c := tools.NewOSSignalChannel()
-
-	logrus.SetOutput(os.Stdout)
-	logrus.SetLevel(logrus.TraceLevel)
-
-	mainFlags := &Flags{}
-	mainFlags.Process()
-
-	InitializeMetrics()
-
-	// Capture signals to cleanup before exiting
-	prometheus.NewBuildInfoCollector()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	vl3 := vL3CompositeEndpoint{}
-	ucnfNse := ucnf.NewUcnfNse(mainFlags.ConfigPath, mainFlags.Verify, &vppagent.UniversalCNFVPPAgentBackend{}, vl3, ctx)
-	logrus.Info("endpoint started")
-
-	defer ucnfNse.Cleanup()
-	<-c
-}
-
 func InitializeMetrics() {
 	metricsPort := os.Getenv(metricsPortEnv)
 	if metricsPort == "" {
@@ -123,37 +97,91 @@ func InitializeMetrics() {
 	metrics.ServeMetrics(addr, metricsPath)
 }
 
-/*
 var (
-	nsmEndpoint *endpoint.NsmEndpoint
+	nsmEndpoint endpoint.NsmEndpoint
 )
+
+func getStringListFromString(str string) []string {
+	return strings.Split(str, ",")
+}
 
 func main() {
 
 	// Capture signals to cleanup before exiting
 	c := tools.NewOSSignalChannel()
 
-	composite := endpoint.NewCompositeEndpoint(
-		endpoint.NewMonitorEndpoint(nil),
-		endpoint.NewIpamEndpoint(nil),
-		newVL3ConnectComposite(nil),
-		endpoint.NewConnectionEndpoint(nil))
+	logrus.SetOutput(os.Stdout)
+	logrus.SetLevel(logrus.TraceLevel)
 
-	nsme, err := endpoint.NewNSMEndpoint(context.TODO(), nil, composite)
-	if err != nil {
-		logrus.Fatalf("%v", err)
+	dataplane := os.Getenv("DATAPLANE")
+
+	if dataplane == "vpp" {
+
+		mainFlags := &Flags{}
+		mainFlags.Process()
+
+		InitializeMetrics()
+
+		// Capture signals to cleanup before exiting
+		prometheus.NewBuildInfoCollector()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		vl3 := vL3CompositeEndpoint{}
+		ucnfNse := ucnf.NewUcnfNse(mainFlags.ConfigPath, mainFlags.Verify, &vppagent.UniversalCNFVPPAgentBackend{}, vl3, ctx)
+		logrus.Info("endpoint started")
+
+		defer ucnfNse.Cleanup()
+		<-c
+
+	} else {
+
+		configuration := common.FromEnv()
+
+		endpoints := []networkservice.NetworkServiceServer{
+			endpoint.NewMonitorEndpoint(configuration),
+			endpoint.NewConnectionEndpoint(configuration),
+			endpoint.NewIpamEndpoint(configuration),
+		}
+
+		dstRoutes := os.Getenv("DST_ROUTES")
+		if dstRoutes != "" {
+			dstRouteMutator := endpoint.CreateRouteMutator(getStringListFromString(dstRoutes))
+			endpoints = append(endpoints, endpoint.NewCustomFuncEndpoint("route", dstRouteMutator))
+		}
+
+		dnsNameServers := os.Getenv("DNS_NAMESERVERS")
+		dnsDomains := os.Getenv("DNS_DOMAINS")
+		if dnsNameServers != "" {
+			dnsMutator := endpoint.NewAddDNSConfigs(&connectioncontext.DNSConfig{
+				DnsServerIps: getStringListFromString(dnsNameServers),
+				SearchDomains: getStringListFromString(dnsDomains),
+			})
+			endpoints = append(endpoints, dnsMutator)
+		}
+
+		composite := endpoint.NewCompositeEndpoint(endpoints...)
+
+		nsme, err := endpoint.NewNSMEndpoint(context.Background(), configuration, composite)
+		if err != nil {
+			logrus.Fatalf("%v", err)
+		}
+
+		nsmEndpoint = nsme
+
+		err = nsme.Start()
+		if err != nil {
+			logrus.Fatalf("Unable to start the endpoint: %v", err)
+		}
+
+		logrus.Infof("Started NSE --got name %s", nsme.GetName())
+		defer func() { _ = nsme.Delete() }()
+
+		// Capture signals to cleanup before exiting
+		<-c
 	}
-	nsmEndpoint = nsme
-	_ = nsmEndpoint.Start()
-	logrus.Infof("Started NSE --got name %s", nsmEndpoint.GetName())
-	defer func() { _ = nsmEndpoint.Delete() }()
-
-	// Capture signals to cleanup before exiting
-	<-c
 }
 
 func GetMyNseName() string {
 	return nsmEndpoint.GetName()
 }
-
-*/
