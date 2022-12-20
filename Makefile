@@ -25,7 +25,7 @@ NSM_PATH?=${TOP}/../../networkservicemesh/networkservicemesh
 CLUSTER_RULES_PREFIX?=kind
 PREFIX?=k8s
 CONTAINER_BUILD_PREFIX?=docker
-VPP_AGENT=ligato/vpp-agent:v3.2.0
+VPP_AGENT=ligato/vpp-agent:v3.4.0
 
 include build/nse/nses.mk
 
