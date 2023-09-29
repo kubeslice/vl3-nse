@@ -20,7 +20,7 @@ require (
 	go.ligato.io/cn-infra/v2 v2.5.0-alpha.0.20200313154441-b0d4c1b11c73
 	go.ligato.io/vpp-agent/v3 v3.3.0-alpha.0.20210111123645-a04d009c61c5
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20210112091331-59c308dcf3cc // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	google.golang.org/grpc v1.29.1
 	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
